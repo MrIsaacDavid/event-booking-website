@@ -11,6 +11,7 @@ class Event(db.Model):
     name = db.Column(db.String(100), nullable=False)
     date = db.Column(db.Date, nullable=False)
     venue = db.Column(db.String(200), nullable=False)
+    max_users = db.Column(db.Integer)
     bookings = db.relationship('Booking', backref='event_relation', lazy=True)
 
     def __init__(self, name, date,venue):
