@@ -1,3 +1,4 @@
+#used for authentication of users like login and sign-up
 from flask import Blueprint,request, jsonify,abort,g
 from .models import User, Booking,Event
 from werkzeug.security import generate_password_hash,check_password_hash
@@ -70,6 +71,10 @@ def sign_up():
         email = data.get('email')
         first_name = data.get('firstName')
         password = data.get('password')  # Corrected variable name
+
+        if len(password) < 8:
+            return jsonify({"message": "Password should be at least 8 characters long."}), 400
+
         
         user = User.query.filter_by(email=email).first()
 
@@ -173,34 +178,37 @@ def get_events():
 @login_required  # Use this decorator to ensure the user is authenticated before creating a booking
 def create_book():
     data = request.get_json()
-    #booking_id = data.get('booking_id')
     user_id = data.get('user_id')
-    event_id=data.get('event_id')  # You might get the user ID from the authentication token
+    event_ids = data.get('event_ids')  # Use 'event_ids' to represent multiple event IDs
 
-    # Check if the event exists and if the user is a valid user
-    
     user = User.query.get(user_id)
-    event= Event.query.get(event_id)
 
-    if user and event:
-        existing_booking = Booking.query.filter_by(user_id=user_id, event_id=event_id).first()
-        if existing_booking:
-            return jsonify({'message': 'User has already booked for this event'}), 400
+    if user:
+        for event_id in event_ids:
+            event = Event.query.get(event_id)
 
-        # Check if there are available slots for the event
-        remaining_slots = event.max_users - Booking.query.filter_by(event_id=event_id).count()
+            if event:
+                existing_booking = Booking.query.filter_by(user_id=user_id, event_id=event_id).first()
 
-        if remaining_slots <= 0:
-            return jsonify({'message': 'No available slots for this event'}), 400
+                if existing_booking:
+                    return jsonify({'message': 'User has already booked for event with ID {}'.format(event_id)}), 400
 
-        # Create a new booking
-        new_booking = Booking(user_id=user_id, event_id=event_id)
-        db.session.add(new_booking)
-        db.session.commit()
-        return jsonify({'message': 'Booking created successfully'}), 201
+                remaining_slots = event.max_users - Booking.query.filter_by(event_id=event_id).count()
+
+                if remaining_slots <= 0:
+                    return jsonify({'message': 'No available slots for event with ID {}'.format(event_id)}), 400
+
+                new_booking = Booking(user_id=user_id, event_id=event_id)
+                db.session.add(new_booking)
+                db.session.commit()
+
+            else:
+                return jsonify({'message': 'Invalid event ID: {}'.format(event_id)}), 400
+
+        return jsonify({'message': 'Bookings created successfully'}), 201
+
     else:
-        return jsonify({'message': 'Invalid event or user'}), 400
-    
+        return jsonify({'message': 'Invalid user ID'}), 400
 @auth.route('/users_with_bookings', methods=['GET'])
 def get_users_with_bookings():
     users_with_bookings = []
@@ -214,7 +222,8 @@ def get_users_with_bookings():
             'email': user.email,
             'booking_id': booking.id,
             'event_name':event.name,
-            'Venue':event.venue
+            'Venue':event.venue,
+            'event_id':event.id
             
            
         })
