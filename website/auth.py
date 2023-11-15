@@ -131,6 +131,7 @@ def create_event():
     name = data.get('name')
     date_str = data.get('date')
     venue=data.get('venue')
+    max_users = data.get('max_users')
 
     try:
         # Convert the date string to a datetime object
@@ -141,7 +142,7 @@ def create_event():
         if existing_event:
             return jsonify(message='Event with the same name already exists'), 400
 
-        new_event = Event(name=name, date=date_obj, venue=venue)
+        new_event = Event(name=name, date=date_obj, venue=venue, max_users=max_users)
 
         db.session.add(new_event)
         db.session.commit()
@@ -182,6 +183,16 @@ def create_book():
     event= Event.query.get(event_id)
 
     if user and event:
+        existing_booking = Booking.query.filter_by(user_id=user_id, event_id=event_id).first()
+        if existing_booking:
+            return jsonify({'message': 'User has already booked for this event'}), 400
+
+        # Check if there are available slots for the event
+        remaining_slots = event.max_users - Booking.query.filter_by(event_id=event_id).count()
+
+        if remaining_slots <= 0:
+            return jsonify({'message': 'No available slots for this event'}), 400
+
         # Create a new booking
         new_booking = Booking(user_id=user_id, event_id=event_id)
         db.session.add(new_booking)
